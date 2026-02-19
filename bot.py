@@ -41,4 +41,3 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("camlink", camlink))
     app.add_handler(CommandHandler("loclink", loclink))
-    app.run_polling()
