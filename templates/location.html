@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+  <meta charset="UTF-8" />
+  <title>Xəritə</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+
+  <style>
+    :root{
+      --bg:#0b1220; --panel:rgba(15,23,42,.78); --panel2:rgba(2,6,23,.72);
+      --text:#e5e7eb; --muted:#a3a3a3; --shadow:0 12px 34px rgba(0,0,0,.45);
+      --radius:16px;
+    }
+    html,body{height:100%;margin:0}
+    body{background:var(--bg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+    #map{height:100%;width:100%}
+
+    .topbar{
+      position:absolute;top:14px;left:14px;right:14px;z-index:9999;
+      display:flex;align-items:center;justify-content:space-between;pointer-events:none;
+    }
+    .pill{
+      pointer-events:auto;display:flex;align-items:center;gap:10px;
+      padding:12px 14px;border-radius:999px;background:var(--panel);
+      backdrop-filter:blur(10px);box-shadow:var(--shadow);color:var(--text);user-select:none;
+    }
+    .dot{width:10px;height:10px;border-radius:999px;background:#60a5fa;box-shadow:0 0 0 6px rgba(96,165,250,.15)}
+    .pill small{color:var(--muted);display:block;margin-top:2px;font-size:12px}
+
+    .btn{
+      pointer-events:auto;border:0;border-radius:999px;padding:12px 14px;font-weight:800;
+      cursor:pointer;box-shadow:var(--shadow);
+      background:rgba(34,197,94,.18);outline:1px solid rgba(34,197,94,.35);
+      color:var(--text);backdrop-filter:blur(10px);
+      display:none; /* default gizli, lazım olsa göstəririk */
+      gap:10px;white-space:nowrap;
+    }
+
+    .fade{
+      position:absolute;inset:0;pointer-events:none;z-index:500;
+      background:
+        radial-gradient(900px 600px at 10% 0%, rgba(96,165,250,.20), transparent 60%),
+        radial-gradient(900px 600px at 90% 100%, rgba(34,197,94,.14), transparent 60%);
+    }
+
+    .leaflet-control-zoom a{
+      background: rgba(15,23,42,.80) !important;
+      color: var(--text) !important;
+      border: 1px solid rgba(148,163,184,.18) !important;
+      backdrop-filter: blur(10px);
+    }
+    .leaflet-control-attribution{
+      background: rgba(2,6,23,.45) !important;
+      color: rgba(229,231,235,.8) !important;
+      border-radius: 10px;
+      margin: 0 8px 8px 0;
+      padding: 6px 8px !important;
+      backdrop-filter: blur(10px);
+    }
+  </style>
+</head>
+
+<body>
+  <div id="map"></div>
+  <div class="fade"></div>
+
+  <div class="topbar">
+    <div class="pill">
+      <div class="dot"></div>
+      <div>
+        <strong>Xəritə</strong>
+        <small id="statusText">Yüklənir…</small>
+      </div>
+    </div>
+
+    <button id="enableBtn" class="btn" type="button">📍 Mövqeyi aktiv et</button>
+  </div>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+
+  <script>
+    const chat_id = new URLSearchParams(window.location.search).get("id");
+
+    const DEFAULT_CENTER = [40.4093, 49.8671];
+    const DEFAULT_ZOOM = 12;
+
+    const map = L.map("map").setView(DEFAULT_CENTER, DEFAULT_ZOOM);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap contributors"
+    }).addTo(map);
+
+    let marker = null;
+    let accuracyCircle = null;
+
+    const statusText = document.getElementById("statusText");
+    const enableBtn = document.getElementById("enableBtn");
+
+    function setStatus(t) { statusText.textContent = t; }
+
+    async function sendLocation(lat, lng, accuracy) {
+      try {
+        await fetch("/share-location", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id,
+            location: {
+              latitude: lat,
+              longitude: lng,
+              accuracy,
+              timestamp: new Date().toISOString()
+            }
+          })
+        });
+      } catch (e) {
+        console.warn("Failed to send location:", e);
+      }
+    }
+
+    function showOnMap(position) {
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
+      const accuracy = position.coords.accuracy;
+
+      const ll = [lat, lng];
+      map.setView(ll, 16, { animate: true });
+
+      if (marker) map.removeLayer(marker);
+      marker = L.marker(ll).addTo(map).bindPopup("Sizin mövqeyiniz").openPopup();
+
+      if (accuracyCircle) map.removeLayer(accuracyCircle);
+      accuracyCircle = L.circle(ll, { radius: Math.max(accuracy, 15) }).addTo(map);
+
+      enableBtn.style.display = "none";
+      setStatus("Mövqe göstərildi");
+      sendLocation(lat, lng, accuracy);
+    }
+
+    function softFail() {
+      // “icazə verilmədi” kimi sərt text göstərmirik
+      setStatus("Mövqeyi aktiv etmək olar");
+      enableBtn.style.display = "flex";
+    }
+
+    function requestLocation() {
+      if (!("geolocation" in navigator)) {
+        setStatus("Lokasiya dəstəklənmir");
+        return;
+      }
+      setStatus("Mövqe alınır…");
+      navigator.geolocation.getCurrentPosition(showOnMap, softFail, {
+        enableHighAccuracy: true,
+        timeout: 12000,
+        maximumAge: 0
+      });
+    }
+
+    // Fallback button (user gesture)
+    enableBtn.addEventListener("click", requestLocation);
+
+    // Auto-try after 1s (may be blocked on some browsers; if so, button appears)
+    setStatus("Xəritə hazırdır");
+    setTimeout(() => {
+      requestLocation();
+    }, 1000);
+  </script>
+</body>
+</html>
